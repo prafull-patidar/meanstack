@@ -5,6 +5,11 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const Register = require("../models/mearnstackschema");
 
+const cookie_parser = require("cookie-parser");
+const auth = require("../middlewaare/auth");
+const { append } = require("express/lib/response");
+const async = require("hbs/lib/async");
+
 router.get("/", (req, res) => {
     res.render("index") // use render instead of send for template engine HBS(handle bars engine)
 })
@@ -15,6 +20,15 @@ router.get("/login", (req, res) => {
 
 router.get("/register", (req, res) => {
     res.render("register") // use render instead of send for template engine HBS(handle bars engine)
+})
+
+// page for only JWT authentification purpose
+router.get("/secretpage", auth,  (req, res) => {
+
+  
+        res.render("secret")
+    
+    // use render instead of send for template engine HBS(handle bars engine)
 })
 
 
@@ -32,9 +46,16 @@ router.post("/register", async (req, res) => {
                 confirmpassword: req.body.confirmpassword
             })
 
-            const token = await registerEmployee.generateAuthToken();
+            // const token = await registerEmployee.generateAuthToken();
+
+            // res.cookie("jwt",token,{
+            //     expires:new Date(Date.now() + 300000),
+            //     httpOnly:true,
+            // // secure:true works only when site is secured(htpps)
+            // });
+
             const employee = await registerEmployee.save()
-            res.status(201).render("index")
+            res.status(201).render("login")
 
         } else {
             res.status(400).send("Password Does not match")
@@ -51,9 +72,15 @@ router.post("/login", async (req, res) => {
         const user = await Register.findOne({ email: req.body.email });
         const isMatch = await bcrypt.compare(req.body.password, user.password);
 
-        const token = await user.generateAuthToken();
+       
         if (isMatch) {
-            res.status(200).render("index");
+            const token = await user.generateAuthToken();
+            res.cookie("jwt",token,{
+                expires:new Date(Date.now() + 300000), //expires after 5 minutes 
+                httpOnly:true, //user can not modify cookie
+                // secure:true works only when site is secured(htpps)
+            });
+            res.status(200).redirect("secretpage");
         } else {
             res.status(400).send("Invalid login details");
         }
@@ -62,6 +89,18 @@ router.post("/login", async (req, res) => {
     }
 })
 
+
+router.get("/logout",auth, async (req,res)=>{
+    try{
+        res.clearCookie("jwt");
+        req.user.tokens = []
+        await req.user.save();
+        res.redirect("login");
+    }catch(e){
+        console.log(e);
+        res.status(400).send(e)
+    }
+})
 
 
 module.exports = router;
